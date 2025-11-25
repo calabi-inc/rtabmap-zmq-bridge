@@ -1,6 +1,6 @@
 # rtabmap-zmq-bridge
 
-Windows host publishes RealSense RGB-D over ZMQ; Docker/WSL container runs RTAB-Map and republishes SLAM topics.
+Windows host publishes RealSense RGB-D over ZMQ; Docker/WSL container runs RTAB-Map and republishes rtabmap.* topics.
 
 ## Layout
 - `Dockerfile`: builds RTAB-Map and the bridge binary
@@ -28,13 +28,27 @@ docker build -t rtabmap_zmq_bridge:latest .
 
 By default the container subscribes to `tcp://host.docker.internal:5555` and publishes to `tcp://*:6000`.
 
-## 3) Consuming SLAM topics
+### Environment Variables
+
+- `SUB`: ZMQ endpoint to subscribe for RGB-D input (default: `tcp://host.docker.internal:5555`)
+- `PUB`: ZMQ endpoint to publish RTAB-Map output topics (default: `tcp://*:6000`)
+- `FULL_RGBD`: Set to `"true"` to include full-resolution RGB-D data in `kf_packet` messages (default: `false` for thumbnail only)
+
+Example with full RGB-D enabled:
+```bash
+docker run --rm -e SUB=tcp://172.27.240.1:5555 -e PUB=tcp://*:6000 -e FULL_RGBD=true rtabmap_zmq_bridge:latest
+```
+
+## 3) Consuming topics
 
 Subscribe to `tcp://127.0.0.1:6000` topics:
-- `slam.tracking_pose`: current camera pose (T_wc) per odometry tick
-- `slam.kf_pose`: pose of newly created keyframe node
-- `slam.kf_pose_update`: pose updates to existing nodes
-- `slam.kf_packet`: keyframe packet JSON + optional RGB thumbnail
+- `rtabmap.tracking_pose`: current camera pose (T_wc) per odometry tick
+- `rtabmap.kf_pose`: pose of newly created keyframe node
+- `rtabmap.kf_pose_update`: pose updates to existing nodes
+- `rtabmap.kf_packet`: keyframe packet with metadata, pose, and image data
+  - **Default mode** (`FULL_RGBD=false`): JSON metadata + RGB thumbnail (320px, JPEG 70% quality)
+  - **Full RGB-D mode** (`FULL_RGBD=true`): JSON metadata + full RGB (JPEG 85% quality) + full depth (PNG uint16)
+- `rtabmap.map_correction`: map-to-odometry transform for drift correction
 
 ## Notes
 - Depth stays uint16 in PNG on the wire and is converted to meters inside the bridge.
