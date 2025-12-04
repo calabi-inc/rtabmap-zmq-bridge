@@ -159,6 +159,25 @@ rtabmap::SensorData CameraZmq::captureImage(rtabmap::SensorCaptureInfo * info)
 	const int height = intr.value("height", 0);
 	depthUnitsM_ = meta.value("depth_units_m", 0.001);
 
+	// Parse IMU data if available
+	cv::Vec3d accel(0, 0, 0);
+	cv::Vec3d gyro(0, 0, 0);
+	bool hasImu = false;
+
+	if (meta.contains("accel") && !meta["accel"].is_null()) {
+		auto a = meta["accel"];
+		if (a.is_array() && a.size() == 3) {
+			accel = cv::Vec3d(a[0].get<double>(), a[1].get<double>(), a[2].get<double>());
+			hasImu = true;
+		}
+	}
+	if (meta.contains("gyro") && !meta["gyro"].is_null()) {
+		auto g = meta["gyro"];
+		if (g.is_array() && g.size() == 3) {
+			gyro = cv::Vec3d(g[0].get<double>(), g[1].get<double>(), g[2].get<double>());
+		}
+	}
+
 	cv::Mat colorBgr;
 	if (!decodeRgbJpeg(parts[2], colorBgr)) {
 		return rtabmap::SensorData();
@@ -200,7 +219,48 @@ rtabmap::SensorData CameraZmq::captureImage(rtabmap::SensorCaptureInfo * info)
 	}
 	frameCount++;
 
-	return rtabmap::SensorData(colorBgr, depth32f, model, 0, stampMs);
+	rtabmap::SensorData data(colorBgr, depth32f, model, 0, stampMs);
+
+	if (hasImu) {
+		// IMU local transform: identity (IMU aligned with camera for D435i)
+		rtabmap::Transform imuLocalTransform = rtabmap::Transform::getIdentity();
+
+		// Create IMU with covariances (tune based on sensor quality)
+		// Note: We don't have orientation quaternion from raw IMU,
+		// so we pass zeros - RTAB-Map will use gravity from accel
+		cv::Mat covOrientation = cv::Mat::zeros(3, 3, CV_64FC1);  // No orientation estimate
+		cv::Mat covAngVel = cv::Mat::eye(3, 3, CV_64FC1) * 0.01;  // Gyro covariance
+		cv::Mat covLinAcc = cv::Mat::eye(3, 3, CV_64FC1) * 0.1;   // Accel covariance
+
+		rtabmap::IMU imu(
+			cv::Vec4d(0, 0, 0, 0),  // No orientation quaternion (raw IMU)
+			covOrientation,
+			gyro,                   // Angular velocity (rad/s)
+			covAngVel,
+			accel,                  // Linear acceleration (m/s^2)
+			covLinAcc,
+			imuLocalTransform
+		);
+		data.setIMU(imu);
+
+		// Store for potential future use
+		{
+			std::lock_guard<std::mutex> lock(lastMutex_);
+			lastAccel_ = accel;
+			lastGyro_ = gyro;
+			hasImu_ = true;
+		}
+
+		// Debug: log IMU occasionally
+		static int imuLogCount = 0;
+		if (imuLogCount < 5 || imuLogCount % 100 == 0) {
+			std::cout << "[camera_zmq] IMU: accel=[" << accel[0] << "," << accel[1] << "," << accel[2]
+			          << "] gyro=[" << gyro[0] << "," << gyro[1] << "," << gyro[2] << "]" << std::endl;
+		}
+		imuLogCount++;
+	}
+
+	return data;
 }
 
 bool CameraZmq::getLatestColorThumb(std::vector<unsigned char> & jpgBytes, int maxWidth)

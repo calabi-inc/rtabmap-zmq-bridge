@@ -8,7 +8,6 @@ docker run --rm --name rtab-zmq \
   -e SUB="${SUB:-tcp://172.27.240.1:5555}" \
   -e PUB="${PUB:-tcp://*:6000}" \
   -e FULL_RGBD="${FULL_RGBD:-true}" \
-  -e REHEARSAL_SIM="${REHEARSAL_SIM:-1.0}" \
   rtabmap_zmq_bridge:latest
 
 

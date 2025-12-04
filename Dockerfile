@@ -26,7 +26,4 @@ ENV SUB=tcp://host.docker.internal:5555
 ENV PUB=tcp://*:6000
 # Set to "true" to include full RGB-D data in kf_packet (default: false for thumbnail only)
 ENV FULL_RGBD=false
-# Rehearsal similarity threshold (1.0=disabled, 0.2=aggressive memory cleanup)
-# Lower values save memory but may cause drift due to node deletion
-ENV REHEARSAL_SIM=1.0
 ENTRYPOINT ["/app/build/rtabmap_zmq_bridge"]

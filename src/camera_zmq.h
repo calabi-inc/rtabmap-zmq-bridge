@@ -9,6 +9,7 @@
 #include <rtabmap/core/Camera.h>
 #include <rtabmap/core/CameraModel.h>
 #include <rtabmap/core/SensorData.h>
+#include <rtabmap/core/IMU.h>
 
 #include <zmq.h>
 
@@ -59,6 +60,10 @@ private:
 	double depthUnitsM_ {0.001};
 	// Last source timestamp in ns
 	uint64_t lastTsNs_ {0};
+	// IMU data
+	cv::Vec3d lastAccel_ {0, 0, 0};  // accelerometer [ax, ay, az] m/s^2
+	cv::Vec3d lastGyro_ {0, 0, 0};   // gyroscope [gx, gy, gz] rad/s
+	bool hasImu_ {false};
 };
 
 

@@ -540,18 +540,42 @@ int main(int argc, char ** argv)
 	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kRGBDLinearUpdate(), "0.1"));   // 10cm translation
 	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kRGBDAngularUpdate(), "0.175")); // ~10 degrees rotation
 
-	// Memory management
-	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kMemIncrementalMemory(), "true"));
-	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kMemImageKept(), "true"));         // Keep for loop closure
-	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kMemSTMSize(), "30"));             // Default
+	// LOOP CLOSURE - maximize detection quality
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kRGBDOptimizeMaxError(), "3.0"));  // Reject bad loop closures
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kRGBDProximityBySpace(), "true")); // Enable proximity detection
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kKpMaxDepth(), "4.0"));            // Limit features to 4m (reliable depth)
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kVisMaxDepth(), "4.0"));           // Limit visual to 4m (reliable depth)
 
-	// Rehearsal similarity: controls when similar nodes are merged to save memory
-	// 1.0 = disabled (keep all nodes, best for loop closure, uses more memory)
-	// 0.2 = aggressive cleanup (saves memory but may cause drift)
-	// Default: 1.0 (disabled) - prioritize accuracy over memory
-	const char * rehearsalEnv = std::getenv("REHEARSAL_SIM");
-	std::string rehearsalSim = rehearsalEnv ? rehearsalEnv : "1.0";
-	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kMemRehearsalSimilarity(), rehearsalSim));
+	// ICP REFINEMENT - refine odometry links using depth data
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kRGBDNeighborLinkRefining(), "true"));  // Refine neighbor links with ICP
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kRegStrategy(), "1"));                  // 0=Vis, 1=ICP, 2=VisICP
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kRegForce3DoF(), "false"));             // Full 6DoF refinement
+
+	// ICP parameters for refinement
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kIcpPointToPlane(), "true"));           // Point-to-plane ICP (better for surfaces)
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kIcpIterations(), "30"));               // ICP iterations
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kIcpVoxelSize(), "0.05"));              // 5cm voxel downsampling
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kIcpMaxCorrespondenceDistance(), "0.1")); // 10cm max correspondence
+
+	// VISUAL ODOMETRY refinement
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kVisMinInliers(), "15"));               // Min inliers for valid transform
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kVisInlierDistance(), "0.1"));          // Inlier distance threshold
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kVisRefineIterations(), "10"));         // Refine visual transform
+
+	// GRAPH OPTIMIZATION - better accuracy
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kOptimizerIterations(), "50"));    // More iterations for convergence
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kRGBDOptimizeFromGraphEnd(), "false")); // Optimize from first node (more stable)
+
+	// IMU / Gravity constraints - improves accuracy when IMU available
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kOptimizerGravitySigma(), "0.3"));  // Enable gravity-aligned optimization
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kMemUseOdomGravity(), "false"));    // Use IMU directly, not odometry gravity
+
+	// Memory management - keep everything for best accuracy
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kMemIncrementalMemory(), "true"));
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kMemImageKept(), "true"));         // Keep images for loop closure
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kMemDepthAsMask(), "false"));      // Keep full depth, not just mask
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kMemSTMSize(), "30"));             // Short-term memory size
+	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kMemRehearsalSimilarity(), "1.0")); // Disabled - keep ALL nodes
 
 	// Disable time-based constraints
 	params.insert(rtabmap::ParametersPair(rtabmap::Parameters::kRtabmapTimeThr(), "0"));
